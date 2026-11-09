@@ -20,8 +20,8 @@ The workflow publishes:
 
 - A GitHub release with Linux amd64 and arm64 archives containing the
   `ingress-controller` executable and Apache 2.0 license, plus `checksums.txt`.
-- A multi-platform image at `ghcr.io/<owner>/<repository>:<tag>` (for this fork,
-  `ghcr.io/svetoch-dev/ingress-controller:v0.34.0`). Stable versions also receive
+- A multi-platform image at `ghcr.io/svetoch-dev/pomerium-ingress-controller:<tag>`
+  (for example, `ghcr.io/svetoch-dev/pomerium-ingress-controller:v0.34.0`). Stable versions also receive
   the `latest` image tag; tags with a prerelease suffix create GitHub prereleases
   and do not update `latest`.
 
