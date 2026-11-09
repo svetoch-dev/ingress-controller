@@ -1,85 +1,100 @@
-name: Docker
+name: Release
+
 permissions:
   contents: read
+
 on:
   push:
-    branches:
-      - main
-      - "[0-9]+-[0-9]+-*"
-      - "experimental/*"
-  release:
-    types:
-      - published
+    tags:
+      - "v[0-9]*.[0-9]*.[0-9]*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Check image reference
-        if: github.event_name == 'release'
-        # check that docker image reference is the same as the release tag
+      - name: Prepare release
+        id: release
+        shell: bash
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: ./scripts/check-image-tag.sh "$RELEASE_TAG"
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+            echo "Unsupported release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: .tool-versions
 
-      - name: Docker meta
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .tool-versions
+
+      - name: Build controller and embedded Pomerium Core
+        env:
+          POMERIUM_OFFICIAL_BUILD: "0"
+          VERSION: ${{ github.ref_name }}
+        run: make build-ci
+
+      - name: Check native binary
+        run: |
+          ./bin/manager-linux-amd64 --version | tee "$RUNNER_TEMP/controller-version.txt"
+          grep -F 'Apache License 2.0' "$RUNNER_TEMP/controller-version.txt"
+
+      - name: Package release artifacts
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            package_dir="$RUNNER_TEMP/ingress-controller-linux-$arch"
+            mkdir -p "$package_dir"
+            install -m 755 "bin/manager-linux-$arch" "$package_dir/ingress-controller"
+            install -m 644 LICENSE "$package_dir/LICENSE"
+            tar -czf "dist/ingress-controller_${RELEASE_TAG}_linux_${arch}.tar.gz" \
+              -C "$package_dir" ingress-controller LICENSE
+          done
+          (cd dist && sha256sum ./*.tar.gz > checksums.txt)
+
+      - name: Docker metadata
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          # list of Docker images to use as base name for tags
-          images: |
-            us-central1-docker.pkg.dev/pomerium-public-prd/ingress-controller/ingress-controller
-            docker.cloudsmith.io/pomerium/ingress-controller/ingress-controller
-          # branch pushes get the branch name; releases get semver tags
+          images: ${{ steps.release.outputs.image }}
           tags: |
-            type=ref,event=branch
             type=semver,pattern={{raw}}
-            type=semver,pattern=v{{major}}.{{minor}}
-            type=sha
           labels: |
-            org.opencontainers.image.licenses=LicenseRef-Pomerium-Community-Edition-1.0
+            org.opencontainers.image.licenses=Apache-2.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - name: gcloud authenticate
-        id: gcloud-auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          project_id: ${{ secrets.GCP_PRODUCTION_PROJECT_ID }}
-          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-      - name: gcloud sdk
-        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-        with:
-          skip_install: true
-
-      - name: gcloud auth configure-docker
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev
-
-      - name: Log in to cloudsmith registry
+      - name: Log in to GHCR
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
-          registry: docker.cloudsmith.io
-          username: ${{ secrets.CLOUDSMITH_USER }}
-          password: ${{ secrets.CLOUDSMITH_API_KEY }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build
-        env:
-          POMERIUM_OFFICIAL_BUILD: "1"
-        run: make build-ci
-
-      - name: Docker Publish
+      - name: Publish controller image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -89,32 +104,20 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  notify-dependencies:
-    needs: publish
-    runs-on: ubuntu-latest
-    permissions: {}
-    strategy:
-      fail-fast: false
-      matrix:
-        repo:
-          - pomerium-enterprise
-    steps:
-      - name: Create CI token
-        id: ci-token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
-        with:
-          client-id: ${{ secrets.POMERIUM_CI_APP_CLIENT_ID }}
-          private-key: ${{ secrets.POMERIUM_CI_APP_PRIVATE_KEY }}
-          owner: pomerium
-          repositories: ${{ matrix.repo }}
-          permission-actions: write
-
-      - name: Notify
-        uses: benc-uk/workflow-dispatch@d004979be141727c7a17c28f603e2facc40d0855 # v1.3.3
-        with:
-          ref: main
-          repo: pomerium/${{ matrix.repo }}
-          sync-status: true
-          token: ${{ steps.ci-token.outputs.token }}
-          wait-for-completion: true
-          workflow: update-dependencies.yaml
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/*.tar.gz dist/checksums.txt --clobber
+          else
+            release_flags=()
+            if [[ "$RELEASE_TAG" == *-* ]]; then
+              release_flags+=(--prerelease)
+            fi
+            gh release create "$RELEASE_TAG" dist/*.tar.gz dist/checksums.txt \
+              --verify-tag --title "$RELEASE_TAG" --generate-notes "${release_flags[@]}"
+          fi
