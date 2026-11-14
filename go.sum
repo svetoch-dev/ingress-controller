@@ -931,8 +931,8 @@ github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUm
 github.com/stvp/go-udp-testing v0.0.0-20201019212854-469649b16807/go.mod h1:7jxmlfBCDBXRzr0eAQJ48XC1hBu1np4CS5+cHEYfwpc=
 github.com/subosito/gotenv v1.6.0 h1:9NlTDc1FTs4qu0DDq7AEtTPNw6SVm7uBMsUCUjABIf8=
 github.com/subosito/gotenv v1.6.0/go.mod h1:Dk4QP5c2W3ibzajGcXpNraDfq2IrhjMIvMSWPKKo0FU=
-github.com/svetoch-dev/pomerium v0.0.0-20261114104021-c92c05ebcb95 h1:2jNILlJN3e7IYWNZo6+CMlyY5NhXPC9ybc4lLtxRNIc=
-github.com/svetoch-dev/pomerium v0.0.0-20261114104021-c92c05ebcb95/go.mod h1:2po3NTN5iu+wchT3gB5QcsVQ6JwtqdidO+thHPNUCY0=
+github.com/svetoch-dev/pomerium v0.0.0-20261114140346-327f656a2bd8 h1:Dj/aDXs1j65CYBygCcMo3Y3tjqmSOjU8cK21at7Gdms=
+github.com/svetoch-dev/pomerium v0.0.0-20261114140346-327f656a2bd8/go.mod h1:2po3NTN5iu+wchT3gB5QcsVQ6JwtqdidO+thHPNUCY0=
 github.com/testcontainers/testcontainers-go v0.44.0 h1:/Fwh6HY1mIikhnm9e7HwoxGycx0lzRAE0f5VQpjFxzI=
 github.com/testcontainers/testcontainers-go v0.44.0/go.mod h1:IcnwQrYTO86xHXu5bvMaBH7ATlbS3Qn1M1QWW3c66rE=
 github.com/testcontainers/testcontainers-go/modules/k3s v0.44.0 h1:NWvw3DJkUzGIYdDxHWfaPqvT3zPWPj+oIE5h2x4KT+4=

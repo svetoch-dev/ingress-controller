@@ -353,4 +353,4 @@ ignore ./internal/ui
 
 tool github.com/pomerium/pomerium/pkg/envoy/get-envoy
 
-replace github.com/pomerium/pomerium => github.com/svetoch-dev/pomerium v0.0.0-20261114104021-c92c05ebcb95
+replace github.com/pomerium/pomerium => github.com/svetoch-dev/pomerium v0.0.0-20261114140346-327f656a2bd8
